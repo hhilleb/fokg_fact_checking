@@ -2,15 +2,13 @@ import torch
 
 class KG:
     def __init__(self, data_dir=None):
-        
         # 1. Parse the benchmark dataset
-        s = '------------------- Description of Dataset' + data_dir + '----------------------------'
+        s = '------------------- Description of Dataset ' + data_dir + ' ----------------------------'
         print(f'\n{s}')
         self.train = self.load_data(data_dir + 'train.txt')
-        #self.valid = self.load_data(data_dir + 'valid.txt')
-        #self.test = self.load_data(data_dir + 'test.txt')
+        self.test = self.load_data(data_dir + 'test.txt')
         
-        self.all_triples = self.train #+ self.valid + self.test
+        self.all_triples = self.train + self.test
         self.entities = self.get_entities(self.all_triples)
         self.relations = self.get_relations(self.all_triples)
 
@@ -22,15 +20,13 @@ class KG:
         print(f'Number of entities: {len(self.entities)}')
         print(f'Number of relations: {len(self.relations)}')
         print(f'Number of triples on train set: {len(self.train)}')
-        #print(f'Number of triples on valid set: {len(self.valid)}')
-        #print(f'Number of triples on test set: {len(self.test)}')
+        print(f'Number of triples on test set: {len(self.test)}')
         s = len(s) * '-'
         print(f'{s}\n')
 
-        # 3. Index train, validation and test sets 
+        # 3. Index train and test sets 
         self.train_idx = [(self.entity_idxs[s], self.relation_idxs[p], self.entity_idxs[o]) for s, p, o in self.train]
-        #self.valid_idx = [(self.entity_idxs[s], self.relation_idxs[p], self.entity_idxs[o]) for s, p, o in self.valid]
-        #self.test_idx = [(self.entity_idxs[s], self.relation_idxs[p], self.entity_idxs[o]) for s, p, o in self.test]
+        self.test_idx = [(self.entity_idxs[s], self.relation_idxs[p], self.entity_idxs[o]) for s, p, o in self.test]
 
         # 4. Create mappings for the filtered link prediction
         self.sp_vocab = dict()
@@ -152,18 +148,16 @@ class TransE(torch.nn.Module):
         
         # (3) Compute distance, i.e., the L2 norm of head + relation - tail
         distance = torch.norm(emb_head + emb_rel - emb_tail, p=2, dim=1)
-        
         return distance
     
 
 
 def train(model, dataset_train, hparams):
-    # Disabled parallel loads because it throws an error otherwise
     dataloader = torch.utils.data.DataLoader(
         dataset_train,
         batch_size=hparams['batch_size'],
         #num_workers=4,
-        shuffle=True,
+        shuffle=False,
         drop_last=True,
         collate_fn=dataset_train.collate_fn)
 
@@ -178,9 +172,8 @@ def train(model, dataset_train, hparams):
     for e in range(1, hparams['num_epochs']):
         epoch_loss = 0.0
         i = 1
-        # iterate over batches (h, r, t are vectors of indices)
+        # Iterate over batches (h, r, t are vectors of indices)
         for h, r, t, labels in dataloader:
-            print("Batch " + str(i))
             optimizer.zero_grad()
             
             # Compute Distance based on translation, i.e. h + r \approx t provided that h,r,t \in G.
@@ -197,5 +190,5 @@ def train(model, dataset_train, hparams):
             
             i = i + 1
             
-        if e % 1 == 0:
+        if e % 100 == 0:
             print(f'{e}.th epoch sum of loss: {epoch_loss}')
